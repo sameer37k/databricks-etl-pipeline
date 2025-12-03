@@ -2,7 +2,7 @@ name: CI/CD Pipeline for Databricks ETL
 
 on:
   push:
-    branches: [ main ]
+    branches: [ fix ]
 
 jobs:
   test-and-deploy:
