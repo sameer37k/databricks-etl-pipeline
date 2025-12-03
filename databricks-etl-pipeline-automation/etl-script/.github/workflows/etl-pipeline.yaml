@@ -1,0 +1,58 @@
+name: CI/CD Pipeline for Databricks ETL
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test-and-deploy:
+    name: Test and Deploy ETL Project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run Unit Tests (Quality Gate)
+        run: pytest tests/
+
+      # --- This is the modern, professional deployment step ---
+      - name: Deploy Code to Databricks Repo
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          echo "Installing Databricks CLI..."
+          pip install databricks-cli
+
+          echo "Ensuring parent directory exists in Databricks Workspace..."
+          # THIS IS THE NEW LINE THAT FIXES THE ERROR
+          # It creates the /Repos/Production directory if it doesn't already exist.
+          databricks workspace mkdirs /Repos/Production
+          
+          echo "Syncing GitHub repo to Databricks Repos..."
+          
+          # Define Repo path and Git URL
+          REPO_PATH="/Repos/Production/databricks-etl-pipeline"
+          GIT_URL="https://github.com/${{ github.repository }}"
+
+          # The following commands will now work because the parent path exists.
+          if databricks repos get --path $REPO_PATH; then
+            echo "Repo exists. Updating to latest commit..."
+            databricks repos update --path $REPO_PATH --branch main
+          else
+            echo "Repo does not exist. Cloning it..."
+            databricks repos create --path $REPO_PATH --url $GIT_URL --provider gitHub
+          fi
+          
+          echo "Deployment to Databricks Repos successful!"
